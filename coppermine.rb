@@ -3,8 +3,6 @@ require 'rubygems'
 require 'active_record'
 require 'kconv'
 
-ActiveRecord::Base.establish_connection(:adapter => "mysql", :host => "localhost", :username => "root", :password => "", :database => "copper")
-
 ActiveRecord::Base.table_name_prefix = "cpg_"
 
 class Usergroup < ActiveRecord::Base
