@@ -137,7 +137,7 @@ def main(argv)
 
   pic_dir = Pathname.new(opt[:copper_picture_dir])
 
-  categories.first(10).each do |cat|
+  categories.each do |cat|
     cat_name = cat.name.toutf8
     g_cat = gallery.post("item/1",
                          :entity => {
@@ -147,7 +147,7 @@ def main(argv)
                          })
     g_cat_url = URI.parse(g_cat["url"])
     puts(cat_name)
-    cat.albums.first(10).each do |album|
+    cat.albums.each do |album|
       album_name = album.title.toutf8
       g_album = gallery.post(g_cat_url.path,
                              :entity => {
@@ -158,7 +158,7 @@ def main(argv)
       g_album_url = URI.parse(g_album["url"])
       puts("  " + album_name)
 
-      album.pictures.first(10).each do |pic|
+      album.pictures.each do |pic|
         begin
           pic_path = pic_dir + pic.filepath + pic.filename
           if ! File.exists?(pic_path.to_s)
