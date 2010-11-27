@@ -10,9 +10,18 @@ module Gallery3
     attr_reader :url
     attr_reader :type
 
+    def initialize
+      @url = nil
+      @type = nil
+    end
+
     class << self
       def from_json(json_entity)
         raise NotImplementedError.new
+      end
+
+      def set_entry_point(url)
+        
       end
     end
 
@@ -21,7 +30,13 @@ module Gallery3
 
   class Photo < Item
     def initialize(params)
-      raise NotImplementedError.new
+      super
+      @type = :photo
+
+      unless params[:file]
+        raise ArgumentError.new(":file is required for Photo")
+      end
+      params[:file] = File.open(params[:file]) if params[:file].is_a? String
     end
   end
 
@@ -40,6 +55,9 @@ module Gallery3
     def get(rest_path)
       uri = @entry_point + rest_path
       path = uri.path
+      if uri.query
+        path += "?#{uri.query}"
+      end
       req = Net::HTTP::Get.new(path)
       req["X-Gallery-Request-Method"] = "get"
       req["X-Gallery-Request-Key"] = @api_key
@@ -47,6 +65,19 @@ module Gallery3
       Net::HTTP.start(uri.host, uri.port) do |http|
         res = http.request(req)
         JSON.parse(res.body)
+      end
+    end
+
+    def delete(rest_path)
+      uri = @entry_point + rest_path
+      path = uri.path
+      req = Net::HTTP::Delete.new(path)
+      req["X-Gallery-Request-Method"] = "delete"
+      req["X-Gallery-Request-Key"] = @api_key
+
+      Net::HTTP.start(uri.host, uri.port) do |http|
+        res = http.request(req)
+        res.body
       end
     end
 
@@ -82,7 +113,7 @@ module Gallery3
         end
 
         req["Content-Type"] = "multipart/form-data; boundary=#{boundary}"
-        req.body = "--" + boundary + "\r\n" + parts.join("\r\n--" + boundary + "\r\n") + "\r\n--" + boundary + "--\r\n"
+        req.body = "--" + boundary + "\r\n" + parts.join("\r\n--" + boundary + "\r\n") + "\r\n--" + boundary + "--\r\n\r\n"
       else
         req["Content-Type"] = "application/x-www-form-urlencoded"
         req.body = params.map{|key,val|
