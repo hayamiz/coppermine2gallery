@@ -149,47 +149,81 @@ def main(argv)
     puts(cat_name)
     cat.albums.each do |album|
       album_name = album.title.toutf8
-      g_album = gallery.post(g_cat_url.path,
-                             :entity => {
-                               :type => :album,
-                               :name => URI.encode_www_form_component(album_name).gsub("%", "_"),
-                               :title => album_name
-                             })
-      g_album_url = URI.parse(g_album["url"])
-      puts("  " + album_name)
+      retry_counter = 0
 
-      album.pictures.each do |pic|
+      while true
+        g_album_url = nil
         begin
-          pic_path = pic_dir + pic.filepath + pic.filename
-          if ! File.exists?(pic_path.to_s)
-            pic_path = pic_dir + pic.filepath + pic.filename.gsub(" ", "_")
+          g_album = gallery.post(g_cat_url.path,
+                                 :entity => {
+                                   :type => :album,
+                                   :name => URI.encode_www_form_component(album_name).gsub("%", "_"),
+                                   :title => album_name
+                                 })
+          g_album_url = URI.parse(g_album["url"])
+          puts("  " + album_name)
+
+          album.pictures.each do |pic|
+            pic_retry_counter = 0
+            while true
+              g_pic = nil
+              begin
+                pic_path = pic_dir + pic.filepath + pic.filename
+                if ! File.exists?(pic_path.to_s)
+                  pic_path = pic_dir + pic.filepath + pic.filename.gsub(" ", "_")
+                end
+                if ! File.exists?(pic_path.to_s)
+                  pic_path = pic_dir + pic.filepath + pic.filename
+                  log_puts("[Error] no such file or directory '#{pic_path.to_s}'")
+                  break
+                end
+                pic_name = pic.filename
+                g_pic = gallery.post(g_album_url.path,
+                                     :entity => {
+                                       :type => :photo,
+                                       :name => pic_name
+                                     },
+                                     :file => File.open(pic_path.to_s))
+                log_puts(g_pic.inspect)
+                puts("    " + pic_path.to_s)
+              rescue JSON::ParserError => err
+                log_puts("[Error] JSON::ParseError: posting photo: #{pic.filepath + pic.filename} (No error, maybe)")
+                log_puts("  #{err.inspect}")
+                log_print("  params: ")
+                log_puts([g_album_url.path,
+                          :entity => {
+                            :type => :photo,
+                            :name => URI.encode_www_form_component(pic_name)
+                          },
+                          :file => File.open(pic_path.to_s)].inspect)
+              rescue StandardError => err
+                log_puts("[Error] posting photo: #{pic.filepath + pic.filename}")
+                log_puts("  #{err.inspect}")
+                log_print("  params: ")
+                log_puts([g_album_url.path,
+                          :entity => {
+                            :type => :photo,
+                            :name => URI.encode_www_form_component(pic_name)
+                          },
+                          :file => File.open(pic_path.to_s)].inspect)
+                raise err
+              end
+
+              break
+            end
           end
-          if ! File.exists?(pic_path.to_s)
-            pic_path = pic_dir + pic.filepath + pic.filename
-            log_puts("[Error] no such file or directory '#{pic_path.to_s}'")
+        rescue StandardError => err
+          if retry_counter < 10
+            log_puts("[Retry] #{album.title}")
+            gallery.delete(g_album_url.path) if g_album_url
+            retry_counter += 1
             next
           end
-          pic_name = pic.filename
-          g_pic = gallery.post(g_album_url.path,
-                               :entity => {
-                                 :type => :photo,
-                                 :name => pic_name
-                               },
-                               :file => File.open(pic_path.to_s))
-          log_puts(g_pic.inspect)
-          puts("    " + pic_path.to_s)
-        rescue StandardError => err
-          log_puts("[Error] posting photo: #{pic.filepath + pic.filename}")
-          log_puts("  #{err.inspect}")
-          log_puts("  params:")
-          log_puts([g_album_url.path,
-                    :entity => {
-                      :type => :photo,
-                      :name => URI.encode_www_form_component(pic_name)
-                    },
-                    :file => File.open(pic_path.to_s)].inspect)
+          log_puts("[Retry] failed 10 times.")
           raise err
         end
+
+        break
       end
     end
   end
